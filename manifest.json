@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Doc Explainer",
+  "version": "1.0.0",
+  "description": "Select text on any page and get AI-powered explanations",
+  "permissions": ["activeTab", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "explain-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+E",
+        "mac": "Command+Shift+E"
+      },
+      "description": "Explain selected text"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doc Explainer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Doc Explainer</h1>
+      <label class="toggle">
+        <input type="checkbox" id="enabled" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="field">
+      <label for="apiKey">OpenAI API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-...">
+    </div>
+
+    <div class="field">
+      <label for="model">Model</label>
+      <select id="model">
+        <option value="gpt-4o-mini">GPT-4o Mini</option>
+        <option value="gpt-4o">GPT-4o</option>
+        <option value="gpt-4.1-nano">GPT-4.1 Nano</option>
+        <option value="gpt-4.1-mini">GPT-4.1 Mini</option>
+        <option value="gpt-4.1">GPT-4.1</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="language">Response Language</label>
+      <select id="language">
+        <option value="ko">한국어</option>
+        <option value="en">English</option>
+        <option value="auto">Auto-detect</option>
+      </select>
+    </div>
+
+    <div id="status" class="status hidden"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
