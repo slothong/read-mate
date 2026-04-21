@@ -1,3 +1,5 @@
+importScripts('providers.js');
+
 // Handle explanation requests from content script
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== 'doc-explainer') return;
@@ -5,19 +7,25 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onMessage.addListener(async (msg) => {
     if (msg.type !== 'explain') return;
 
-    const settings = await chrome.storage.sync.get(['apiKey', 'model', 'language', 'enabled']);
+    const settings = await chrome.storage.sync.get([
+      'provider', 'model', 'language', 'enabled',
+      'apiKey_openai', 'apiKey_anthropic', 'apiKey_google',
+    ]);
 
     if (settings.enabled === false) {
       port.postMessage({ type: 'error', error: 'Doc Explainer is disabled' });
       return;
     }
 
-    if (!settings.apiKey) {
+    const provider = settings.provider || 'openai';
+    const apiKey = settings[`apiKey_${provider}`];
+
+    if (!apiKey) {
       port.postMessage({ type: 'error', error: 'API Key not set. Click the extension icon to configure.' });
       return;
     }
 
-    const model = settings.model || 'gpt-4o-mini';
+    const model = settings.model || PROVIDERS[provider].defaultModel;
     const language = settings.language || 'ko';
 
     const languageInstruction = {
@@ -51,66 +59,16 @@ Rules:
     }
     userMessage += `Selected text to explain:\n"""${msg.text}"""`;
 
+    const streamFn = {
+      openai: streamOpenAI,
+      anthropic: streamAnthropic,
+      google: streamGoogle,
+    }[provider];
+
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          stream: true,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage },
-          ],
-        }),
+      await streamFn(apiKey, model, systemPrompt, userMessage, (content) => {
+        port.postMessage({ type: 'chunk', content });
       });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        port.postMessage({
-          type: 'error',
-          error: err.error?.message || `API error: ${response.status}`,
-        });
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-
-          const data = trimmed.slice(6);
-          if (data === '[DONE]') {
-            port.postMessage({ type: 'done' });
-            return;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              port.postMessage({ type: 'chunk', content });
-            }
-          } catch {
-            // skip malformed JSON
-          }
-        }
-      }
-
       port.postMessage({ type: 'done' });
     } catch (err) {
       port.postMessage({ type: 'error', error: err.message || 'Network error' });

@@ -45,29 +45,35 @@
 - 다른 영역 클릭 시 버튼 자동 소멸
 - 페이지의 기존 UI와 충돌하지 않도록 z-index 최상위 + Shadow DOM 적용
 
-### 5.3 설명 팝오버
-- 트리거 버튼 클릭 시 선택 영역 근처에 팝오버 표시
-- 팝오버 구성:
+### 5.3 설명 사이드 패널
+- 트리거 버튼 클릭 시 화면 오른쪽에 사이드 패널이 슬라이드 인
+- 패널이 열리면 페이지 본문이 왼쪽으로 밀려나 콘텐츠가 가려지지 않음
+- 패널 구성:
   - 헤더: 선택한 텍스트 미리보기 (말줄임 처리)
   - 본문: AI 생성 설명 (마크다운 렌더링 지원)
-  - 푸터: "복사" 버튼, "닫기" 버튼
+  - 푸터: "복사" 버튼
 - AI 응답 대기 중 로딩 스피너 표시
 - 스트리밍 응답 지원: 토큰 단위로 점진적 렌더링
-- 팝오버 외부 클릭 시 닫힘
-- 팝오버는 드래그하여 위치 이동 가능
+- 닫기 버튼 클릭 시 패널 슬라이드 아웃
 
 ### 5.4 AI API 연동
-- **지원 API**: OpenAI API (GPT-4o 등)
+- **지원 프로바이더**:
+  - **OpenAI**: GPT-4o, GPT-4o Mini, GPT-4.1 시리즈
+  - **Anthropic**: Claude Sonnet, Claude Haiku
+  - **Google**: Gemini 2.0 Flash, Gemini 2.5 Flash
+- 사용자가 설정에서 프로바이더와 모델을 선택
+- 각 프로바이더별 API Key를 개별 관리
 - 요청 구성:
   - System prompt: 선택된 텍스트의 종류(일반, 코드, 수식 등)에 맞춰 설명하도록 지시
   - User message: 선택된 텍스트 + 주변 맥락 (선택 영역 앞뒤 500자)
-- 스트리밍 모드(SSE) 사용하여 응답 점진 표시
+- 스트리밍 모드 사용하여 응답 점진 표시 (OpenAI: SSE, Anthropic: SSE, Google: SSE)
 - 타임아웃: 30초
-- 에러 발생 시 팝오버 내에 재시도 버튼 표시
+- 에러 발생 시 사이드 패널 내에 재시도 버튼 표시
 
 ### 5.5 설정 (팝업 페이지)
-- API Key 입력 및 저장 (chrome.storage.sync)
-- AI 모델 선택 (예: gpt-4o-mini, gpt-4o)
+- AI 프로바이더 선택 (OpenAI / Anthropic / Google)
+- 프로바이더별 API Key 입력 및 저장 (chrome.storage.sync)
+- 선택한 프로바이더에 따라 사용 가능한 모델 목록 동적 표시
 - 설명 언어 설정 (한국어/영어/자동감지)
 - 익스텐션 활성화/비활성화 토글
 
@@ -88,8 +94,8 @@
 
  텍스트 선택 감지 ──────>  (필요 시 API 호출 중계)
  툴팁 버튼 표시
- 버튼 클릭 ─────────────> API 요청 전송 ──────────────> OpenAI API
- 팝오버 렌더링 <───────── 스트리밍 응답 중계 <──────────
+ 버튼 클릭 ─────────────> API 요청 전송 ──────────────> OpenAI / Anthropic / Google API
+ 사이드 패널 렌더링 <──── 스트리밍 응답 중계 <──────────
 
 [Popup]
  API Key 설정
@@ -101,11 +107,11 @@
 | 파일 | 역할 |
 |------|------|
 | `manifest.json` | 익스텐션 설정, 권한 선언 |
-| `content.js` | 텍스트 선택 감지, 툴팁/팝오버 UI 렌더링 |
-| `content.css` | 툴팁/팝오버 스타일 |
-| `background.js` | Service Worker. API 호출 중계, 설정 관리 |
-| `popup.html/js/css` | 설정 페이지 UI |
-| `lib/api.js` | OpenAI API 호출 로직 |
+| `content.js` | 텍스트 선택 감지, 툴팁/사이드 패널 UI 렌더링 |
+| `content.css` | 스타일 (Shadow DOM 내부에서 관리) |
+| `background.js` | Service Worker. API 호출 중계, 프로바이더 라우팅, 설정 관리 |
+| `popup.html/js/css` | 설정 페이지 UI (프로바이더/모델 선택) |
+| `providers.js` | 프로바이더별 API 호출 로직 (OpenAI, Anthropic, Google) |
 
 ### API 호출을 Background에서 처리하는 이유
 - Content Script는 페이지의 CSP(Content Security Policy)에 제약받아 외부 API 호출이 차단될 수 있음
@@ -116,9 +122,9 @@
 
 1. **텍스트 선택** → Content Script가 `mouseup` 이벤트에서 `window.getSelection()` 호출
 2. **트리거** → 플로팅 버튼 클릭 시, Content Script가 `chrome.runtime.sendMessage()`로 Background에 요청 전송
-3. **API 호출** → Background가 저장된 API Key로 OpenAI API 스트리밍 요청
+3. **API 호출** → Background가 선택된 프로바이더에 맞는 API로 스트리밍 요청
 4. **응답 전달** → Background가 `chrome.runtime.Port`를 통해 Content Script에 청크 단위 전달
-5. **렌더링** → Content Script가 팝오버에 점진적으로 텍스트 추가
+5. **렌더링** → Content Script가 사이드 패널에 점진적으로 텍스트 추가
 
 ## 9. 마일스톤
 
@@ -134,7 +140,6 @@
 - 키보드 단축키
 
 ### M3: 고도화
-- 추가 AI 프로바이더 지원 (Claude 등)
 - 설명 히스토리 저장
 - 설명 톤/깊이 커스터마이징 (간단히 / 자세히)
 - 페이지별 활성화/비활성화
