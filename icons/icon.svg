@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90D9"/>
+      <stop offset="100%" style="stop-color:#357ABD"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="128" height="128" rx="24" ry="24" fill="url(#bg)"/>
+  <!-- Book icon -->
+  <path d="M34 88V40c0-4 2-7 6-8 8-2 18-3 24-3v52c-6 0-16 1-24 3-4 1-6 4-6 6z" fill="rgba(255,255,255,0.9)"/>
+  <path d="M64 29c6 0 16 1 24 3 4 1 6 4 6 8v48c0-2-2-5-6-6-8-2-18-3-24-3z" fill="rgba(255,255,255,0.7)"/>
+  <!-- Question mark bubble -->
+  <circle cx="96" cy="36" r="20" fill="#FFD54F"/>
+  <text x="96" y="44" text-anchor="middle" font-family="Arial, sans-serif" font-size="26" font-weight="bold" fill="#5D4037">?</text>
+</svg>
