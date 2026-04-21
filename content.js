@@ -3,19 +3,18 @@
   const MIN_SELECTION_LENGTH = 2;
   const MAX_SELECTION_LENGTH = 10000;
   const CONTEXT_CHARS = 500;
+  const PANEL_WIDTH = 380;
 
-  // ── Shadow DOM host ────────────────────────────────────────
-  const host = document.createElement('div');
-  host.id = 'doc-explainer-host';
-  host.style.cssText = 'position:absolute;top:0;left:0;z-index:2147483647;';
-  document.body.appendChild(host);
+  // ── Shadow DOM host for trigger button ────────────────────
+  const btnHost = document.createElement('div');
+  btnHost.id = 'doc-explainer-btn-host';
+  btnHost.style.cssText = 'position:absolute;top:0;left:0;z-index:2147483647;';
+  document.body.appendChild(btnHost);
 
-  const shadow = host.attachShadow({ mode: 'closed' });
+  const btnShadow = btnHost.attachShadow({ mode: 'closed' });
 
-  const style = document.createElement('style');
-  style.textContent = `
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
+  const btnStyle = document.createElement('style');
+  btnStyle.textContent = `
     .trigger-btn {
       position: fixed;
       display: none;
@@ -40,107 +39,136 @@
     .trigger-btn.visible {
       display: flex;
     }
+  `;
+  btnShadow.appendChild(btnStyle);
 
-    .popover {
-      position: fixed;
-      display: none;
+  const triggerBtn = document.createElement('button');
+  triggerBtn.className = 'trigger-btn';
+  triggerBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+  triggerBtn.title = 'Explain selection';
+  btnShadow.appendChild(triggerBtn);
+
+  // ── Side panel ────────────────────────────────────────────
+  const panel = document.createElement('div');
+  panel.id = 'doc-explainer-panel';
+  panel.style.cssText = `
+    position: fixed;
+    top: 0;
+    right: -${PANEL_WIDTH}px;
+    width: ${PANEL_WIDTH}px;
+    height: 100vh;
+    z-index: 2147483647;
+    transition: right 0.25s ease;
+  `;
+  document.body.appendChild(panel);
+
+  const panelShadow = panel.attachShadow({ mode: 'closed' });
+
+  const panelStyle = document.createElement('style');
+  panelStyle.textContent = `
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .panel {
+      display: flex;
       flex-direction: column;
-      width: 400px;
-      max-height: 420px;
+      width: 100%;
+      height: 100%;
       background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      border-left: 1px solid #ddd;
+      box-shadow: -2px 0 12px rgba(0,0,0,0.08);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       font-size: 14px;
       color: #1a1a1a;
-      z-index: 2147483647;
-      overflow: hidden;
-    }
-    .popover.visible {
-      display: flex;
     }
 
-    .popover-header {
+    .panel-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 14px;
+      padding: 12px 16px;
       background: #f7f8fa;
       border-bottom: 1px solid #eee;
-      cursor: move;
-      user-select: none;
+      flex-shrink: 0;
     }
-    .popover-header-text {
+    .panel-header-text {
       font-size: 12px;
       color: #888;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      max-width: 320px;
+      flex: 1;
+      margin-right: 8px;
     }
-    .popover-close {
+    .panel-close {
       background: none;
       border: none;
-      font-size: 18px;
+      font-size: 20px;
       color: #999;
       cursor: pointer;
-      padding: 0 0 0 8px;
+      padding: 0;
       line-height: 1;
     }
-    .popover-close:hover { color: #333; }
+    .panel-close:hover { color: #333; }
 
-    .popover-body {
+    .panel-body {
       flex: 1;
-      padding: 14px;
+      padding: 16px;
       overflow-y: auto;
       line-height: 1.65;
       word-break: break-word;
     }
-    .popover-body p { margin-bottom: 8px; }
-    .popover-body p:last-child { margin-bottom: 0; }
-    .popover-body code {
+    .panel-body p { margin-bottom: 8px; }
+    .panel-body p:last-child { margin-bottom: 0; }
+    .panel-body code {
       background: #f0f0f0;
       padding: 1px 5px;
       border-radius: 4px;
       font-size: 13px;
       font-family: 'SF Mono', Menlo, Consolas, monospace;
     }
-    .popover-body pre {
+    .panel-body pre {
       background: #f5f5f5;
       padding: 10px 12px;
       border-radius: 6px;
       overflow-x: auto;
       margin-bottom: 8px;
     }
-    .popover-body pre code {
+    .panel-body pre code {
       background: none;
       padding: 0;
     }
-    .popover-body ul, .popover-body ol {
+    .panel-body ul, .panel-body ol {
       padding-left: 20px;
       margin-bottom: 8px;
     }
-    .popover-body li { margin-bottom: 4px; }
-    .popover-body strong { font-weight: 600; }
-    .popover-body h1, .popover-body h2, .popover-body h3 {
+    .panel-body li { margin-bottom: 4px; }
+    .panel-body strong { font-weight: 600; }
+    .panel-body h1, .panel-body h2, .panel-body h3 {
       font-weight: 600;
       margin-bottom: 6px;
     }
-    .popover-body h1 { font-size: 16px; }
-    .popover-body h2 { font-size: 15px; }
-    .popover-body h3 { font-size: 14px; }
+    .panel-body h1 { font-size: 16px; }
+    .panel-body h2 { font-size: 15px; }
+    .panel-body h3 { font-size: 14px; }
 
-    .popover-footer {
+    .panel-footer {
       display: flex;
       align-items: center;
       justify-content: flex-end;
       gap: 8px;
-      padding: 8px 14px;
+      padding: 10px 16px;
       border-top: 1px solid #eee;
       background: #f7f8fa;
+      flex-shrink: 0;
     }
-    .popover-footer button {
-      padding: 4px 12px;
+    .panel-footer button {
+      padding: 5px 14px;
       border: 1px solid #ddd;
       border-radius: 6px;
       background: #fff;
@@ -148,7 +176,7 @@
       cursor: pointer;
       color: #333;
     }
-    .popover-footer button:hover {
+    .panel-footer button:hover {
       background: #f0f0f0;
     }
 
@@ -182,38 +210,48 @@
     }
     .retry-btn:hover { background: #ffeaea; }
   `;
-  shadow.appendChild(style);
+  panelShadow.appendChild(panelStyle);
 
-  // ── Trigger button ─────────────────────────────────────────
-  const triggerBtn = document.createElement('button');
-  triggerBtn.className = 'trigger-btn';
-  triggerBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
-  triggerBtn.title = 'Explain selection';
-  shadow.appendChild(triggerBtn);
-
-  // ── Popover ────────────────────────────────────────────────
-  const popover = document.createElement('div');
-  popover.className = 'popover';
-  popover.innerHTML = `
-    <div class="popover-header">
-      <span class="popover-header-text"></span>
-      <button class="popover-close">&times;</button>
+  const panelEl = document.createElement('div');
+  panelEl.className = 'panel';
+  panelEl.innerHTML = `
+    <div class="panel-header">
+      <span class="panel-header-text"></span>
+      <button class="panel-close">&times;</button>
     </div>
-    <div class="popover-body"></div>
-    <div class="popover-footer">
+    <div class="panel-body"></div>
+    <div class="panel-footer">
       <button class="copy-btn">Copy</button>
     </div>
   `;
-  shadow.appendChild(popover);
+  panelShadow.appendChild(panelEl);
 
-  const headerText = popover.querySelector('.popover-header-text');
-  const body = popover.querySelector('.popover-body');
-  const closeBtn = popover.querySelector('.popover-close');
-  const copyBtn = popover.querySelector('.copy-btn');
-  const header = popover.querySelector('.popover-header');
+  const headerText = panelEl.querySelector('.panel-header-text');
+  const body = panelEl.querySelector('.panel-body');
+  const closeBtn = panelEl.querySelector('.panel-close');
+  const copyBtn = panelEl.querySelector('.copy-btn');
 
   // ── State ──────────────────────────────────────────────────
   let rawResponse = '';
+  let panelOpen = false;
+
+  // ── Panel open/close ──────────────────────────────────────
+  function openPanel() {
+    if (panelOpen) return;
+    panelOpen = true;
+    panel.style.right = '0px';
+    document.documentElement.style.marginRight = `${PANEL_WIDTH}px`;
+    document.documentElement.style.transition = 'margin-right 0.25s ease';
+  }
+
+  function closePanel() {
+    if (!panelOpen) return;
+    panelOpen = false;
+    panel.style.right = `-${PANEL_WIDTH}px`;
+    document.documentElement.style.marginRight = '';
+    body.innerHTML = '';
+    rawResponse = '';
+  }
 
   // ── Selection handling ─────────────────────────────────────
   function getSelectionInfo() {
@@ -262,49 +300,21 @@
     triggerBtn.classList.remove('visible');
   }
 
-  function showPopover(rect) {
-    let x = rect.right + 10;
-    let y = rect.top;
-
-    // Keep within viewport
-    if (x + 400 > window.innerWidth) x = Math.max(8, rect.left - 410);
-    if (y + 420 > window.innerHeight) y = Math.max(8, window.innerHeight - 430);
-
-    popover.style.left = `${x}px`;
-    popover.style.top = `${y}px`;
-    popover.classList.add('visible');
-  }
-
-  function hidePopover() {
-    popover.classList.remove('visible');
-    body.innerHTML = '';
-    rawResponse = '';
-  }
-
   // ── Markdown rendering (lightweight) ───────────────────────
   function renderMarkdown(md) {
     let html = md
-      // Code blocks
       .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-      // Inline code
       .replace(/`([^`]+)`/g, '<code>$1</code>')
-      // Bold
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      // Italic
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      // Headers
       .replace(/^### (.+)$/gm, '<h3>$1</h3>')
       .replace(/^## (.+)$/gm, '<h2>$1</h2>')
       .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      // Unordered lists
       .replace(/^[*-] (.+)$/gm, '<li>$1</li>')
-      // Ordered lists
       .replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
 
-    // Wrap consecutive <li> in <ul>
     html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
 
-    // Paragraphs: split by double newlines
     html = html
       .split(/\n{2,}/)
       .map(block => {
@@ -326,7 +336,7 @@
 
     body.innerHTML = '<div class="spinner"></div>';
     rawResponse = '';
-    showPopover(info.rect);
+    openPanel();
     hideTrigger();
 
     const port = chrome.runtime.connect({ name: 'doc-explainer' });
@@ -374,31 +384,9 @@
     return div.innerHTML;
   }
 
-  // ── Drag to move popover ───────────────────────────────────
-  let isDragging = false;
-  let dragOffset = { x: 0, y: 0 };
-
-  header.addEventListener('mousedown', (e) => {
-    isDragging = true;
-    dragOffset.x = e.clientX - popover.offsetLeft;
-    dragOffset.y = e.clientY - popover.offsetTop;
-    e.preventDefault();
-  });
-
-  document.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    popover.style.left = `${e.clientX - dragOffset.x}px`;
-    popover.style.top = `${e.clientY - dragOffset.y}px`;
-  });
-
-  document.addEventListener('mouseup', () => {
-    isDragging = false;
-  });
-
   // ── Event listeners ────────────────────────────────────────
   document.addEventListener('mouseup', (e) => {
-    // Ignore clicks inside our UI
-    if (host.contains(e.target)) return;
+    if (btnHost.contains(e.target) || panel.contains(e.target)) return;
 
     setTimeout(() => {
       const info = getSelectionInfo();
@@ -410,17 +398,6 @@
     }, 10);
   });
 
-  document.addEventListener('mousedown', (e) => {
-    // Click outside popover → close
-    if (!host.contains(e.target) && popover.classList.contains('visible')) {
-      hidePopover();
-    }
-    // Click outside trigger → hide
-    if (!host.contains(e.target)) {
-      hideTrigger();
-    }
-  });
-
   triggerBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     const info = getSelectionInfo();
@@ -429,7 +406,7 @@
     }
   });
 
-  closeBtn.addEventListener('click', () => hidePopover());
+  closeBtn.addEventListener('click', () => closePanel());
 
   copyBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(rawResponse).then(() => {
